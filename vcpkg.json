@@ -1,0 +1,7 @@
+{
+  "name": "chip8-emulator",
+  "version-string": "0.1.0",
+  "dependencies": [
+    "sdl2"
+  ]
+}
