@@ -69,7 +69,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    SDL_Window* window = SDL_CreateWindow("Otto - CHIP-8 Emulator",
+    SDL_Window* window = SDL_CreateWindow("CHIP-8 Emulator",
                                           SDL_WINDOWPOS_CENTERED,
                                           SDL_WINDOWPOS_CENTERED,
                                           WINDOW_WIDTH,
@@ -133,7 +133,7 @@ int main(int argc, char* argv[]) {
         SDL_RenderPresent(renderer);
 
         auto endTime = std::chrono::high_resolution_clock::now();
-        int elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count();
+        uint32_t elapsedTime = static_cast<uint32_t>(std::chrono::duration_cast<std::chrono::milliseconds>(endTime - startTime).count());
 
         if (frameDelay > elapsedTime) {
             SDL_Delay(frameDelay - elapsedTime);

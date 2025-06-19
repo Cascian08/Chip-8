@@ -6,16 +6,27 @@
 
 bool Chip8::loadROM(std::string_view fileName) {
     std::ifstream file(fileName.data(), std::ios::binary | std::ios::ate);
-    if (!file) return false;
+    if (!file.is_open()) {
+        std::cerr << "Failed to open ROM file: " << fileName << "\n";
+        return false;
+    }
 
-    std::streamsize size = file.tellg(); 
-    constexpr std::size_t loadAddress = 0x200;
-    if (size > static_cast<std::streamsize>(memory.size() - loadAddress)) return false;   
+    const std::size_t size = static_cast<std::size_t>(file.tellg());
+    const std::size_t maxRomSize = memory.size() - ROM_START_ADDRESS;
+    
+    if (size > maxRomSize) {
+        std::cerr << "ROM size too large or invalid.\n";
+        return false;
+    }
 
     file.seekg(0, std::ios::beg);
-    file.read(reinterpret_cast<char*>(&memory[loadAddress]), size);
+    
+    if (!file.read(reinterpret_cast<char*> (memory.data() + ROM_START_ADDRESS), static_cast<std::streamsize>(size))) {
+        std::cerr << "Failed to read ROM content.\n";
+        return false;
+    }
 
-    pc = loadAddress;
+    pc = ROM_START_ADDRESS;
     return true;
 }
 
@@ -27,28 +38,8 @@ Chip8::Chip8() {
     stack.fill(0);
     display.fill(0);
     keypad.fill(0);
-
-    static constexpr std::array<uint8_t, 80> fontset = {
-        0xF0, 0x90, 0x90, 0x90, 0xF0,
-        0x20, 0x60, 0x20, 0x20, 0x70,
-        0xF0, 0x10, 0xF0, 0x80, 0xF0,
-        0xF0, 0x10, 0xF0, 0x10, 0xF0,
-        0x90, 0x90, 0xF0, 0x10, 0x10,
-        0xF0, 0x80, 0xF0, 0x10, 0xF0,
-        0xF0, 0x80, 0xF0, 0x90, 0xF0,
-        0xF0, 0x10, 0x20, 0x40, 0x40,
-        0xF0, 0x90, 0xF0, 0x10, 0xF0,
-        0xF0, 0x90, 0xF0, 0x10, 0xF0,
-        0xF0, 0x90, 0xF0, 0x90, 0x90,
-        0xE0, 0x90, 0xE0, 0x90, 0xE0,
-        0xF0, 0x80, 0x80, 0x80, 0xF0,
-        0xE0, 0x90, 0x90, 0x90, 0xE0,
-        0xF0, 0x80, 0xF0, 0x80, 0xF0,
-        0xF0, 0x80, 0xF0, 0x80, 0x80 
-    };
-
-    std::copy(fontset.begin(), fontset.end(), memory.begin() + 0x50);
-
+    
+    std::copy(fontset.begin(), fontset.end(), memory.begin() + FONTSET_START_ADDRESS);
     initializeOpcodeTables();
 }
 
@@ -56,8 +47,10 @@ void Chip8::cycle() {
     opcode = (memory[pc] << 8 | memory[pc + 1]);
     pc += 2;
 
-    const auto highNibble = (opcode & 0xF000) >> 12;
-    if (OpFunc handler = mainTable[highNibble]; handler) {
+    auto opClass = static_cast<OpcodeClass>((opcode & 0xF000) >> 12);
+    OpFunc handler = mainTable[static_cast<uint8_t>(opClass)];
+    
+    if (handler) {
         (this->*handler)();
     } else {
         std::cerr << std::hex << "Unknown opcode: 0x" << opcode << "\n";
@@ -66,6 +59,9 @@ void Chip8::cycle() {
     if (delayTimer > 0) --delayTimer;
     if (soundTimer > 0) --soundTimer;
 }
+
+std::mt19937 Chip8::rng(std::random_device{}());
+std::uniform_int_distribution<uint8_t> Chip8::dist{0, 255};
 
 void Chip8::initializeOpcodeTables() {
     mainTable[0x0] = &Chip8::table0Handler;
@@ -162,14 +158,14 @@ void Chip8::op2NNN() {
 
 void Chip8::op3XKK() {
     uint8_t x = (opcode & 0xF00) >> 8;
-    uint8_t kk = opcode & 0x00FF;
+    uint8_t kk = static_cast<uint8_t>(opcode & 0x00FF);
 
     if (V[x] == kk) pc += 2;
 }
 
 void Chip8::op4XKK() {
     uint8_t x = (opcode & 0xF00) >> 8;
-    uint8_t kk = opcode & 0x00FF;
+    uint8_t kk = static_cast<uint8_t>(opcode & 0x00FF);
     
     if (V[x] != kk) pc += 2;
 }
@@ -183,14 +179,14 @@ void Chip8::op5XY0() {
 
 void Chip8::op6XKK() {
     uint8_t x = (opcode & 0xF00) >> 8;
-    uint8_t kk = opcode & 0x00FF;
-
+    uint8_t kk = static_cast<uint8_t>(opcode & 0x00FF);
+    
     V[x] = kk;
 }
 
 void Chip8::op7XKK() {
     uint8_t x = (opcode & 0xF00) >> 8;
-    uint8_t kk = opcode & 0x00FF;
+    uint8_t kk = static_cast<uint8_t>(opcode & 0x00FF);
 
     V[x] += kk;
 }
@@ -280,12 +276,9 @@ void Chip8::opBNNN() {
 }
 
 void Chip8::opCXKK() {
-    static std::mt19937 rng(std::random_device{}());
-    static std::uniform_int_distribution<uint8_t> dist(0, 255);
-
     uint8_t x = (opcode & 0xF00) >> 8;
-    uint8_t kk = (opcode & 0x00FF);
-
+    uint8_t kk = static_cast<uint8_t>(opcode & 0x00FF);
+    
     V[x] = dist(rng) & kk;
 }
 
@@ -339,18 +332,14 @@ void Chip8::opFX07() {
 void Chip8::opFX0A() {
     uint8_t x = (opcode & 0x0F00) >> 8;
 
-    bool keyPressed = false;
-    for (uint8_t i = 0; i < 16; ++i) {
+    for (uint8_t i = 0; i < keypad.size(); ++i) {
         if (keypad[i]) {
             V[x] = i;
-            keyPressed = true;
             return;
         }
     }
     
-    if (!keyPressed) {
-        pc -= 2; 
-    }
+    pc -= 2;  
 }
 
 void Chip8::opFX15() {
@@ -374,7 +363,7 @@ void Chip8::opFX1E() {
 void Chip8::opFX29() {
     uint8_t x = (opcode & 0x0F00) >> 8;
 
-    I = 0x50 + V[x] * 5;
+    I = static_cast<uint16_t> (FONTSET_START_ADDRESS + V[x] * 5);
 }
 
 void Chip8::opFX33() {

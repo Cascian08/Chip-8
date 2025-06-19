@@ -20,3 +20,25 @@ target_link_libraries(chip8 PRIVATE
     SDL2::SDL2main
     SDL2::SDL2
 )
+
+function(enable_strict_warnings target)
+    if (CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(${target} PRIVATE
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Wshadow
+            -Wconversion
+            -Wsign-conversion
+            -Wold-style-cast
+            -Wnull-dereference
+            -Wdouble-promotion
+            -Wformat=2
+            -Werror
+        )
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        target_compile_options(${target} PRIVATE /W4 /WX)
+    endif()
+endfunction()
+
+enable_strict_warnings(chip8)
